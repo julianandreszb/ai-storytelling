@@ -5,8 +5,6 @@ defineProps<{
 
 const CLOUDFLARE_WORKERS_AI_TOKEN = import.meta.env.VITE_CLOUDFLARE_WORKERS_AI_TOKEN
 
-console.log(CLOUDFLARE_WORKERS_AI_TOKEN)
-
 fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
   method: "GET",
   headers: {
