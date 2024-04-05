@@ -4,13 +4,15 @@ defineProps<{
 }>()
 
 const CLOUDFLARE_WORKERS_AI_TOKEN = import.meta.env.VITE_CLOUDFLARE_WORKERS_AI_TOKEN
+const CLOUDFLARE_WORKERS_AI_CLIENT_ID = import.meta.env.VITE_CLOUDFLARE_WORKERS_CLIENT_ID
 
-fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
-  method: "GET",
+fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_WORKERS_AI_CLIENT_ID}/ai/run/@cf/meta/llama-2-7b-chat-int8`, {
+  method: "POST",
   headers: {
     "Authorization": `Bearer ${CLOUDFLARE_WORKERS_AI_TOKEN}`,
     "Content-Type": "application/json"
-  }
+  },
+  body: JSON.stringify({ prompt: "Where did the phrase Hello World come from" })
 })
   .then(response => response.json())
   .then(data => console.log(data))
