@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { nextTick, reactive, ref } from 'vue'
-//TODO: Resize image
+
+//TODO: Resize-optimize images
 import fairytaleIcon from '@/assets/images/fairytale.png'
-import aiIcon from '@/assets/images/ai.png'
+import aiIcon from '@/assets/images/ai-2.png'
+import spanishIcon from '@/assets/images/es.png'
+import englishIcon from '@/assets/images/en.png'
 
 const workerAiHost = import.meta.env.VITE_WORKER_AI_HOST
 const isChatSectionVisible = ref(false)
 const isChatFormEnabled = ref(true)
 const isEndStoryButtonEnabled = ref(false)
-const chatStory: string[] = []
-const useFullStoryForImageGenerator = ref(false)
+// const chatStory: string[] = []
+// const useFullStoryForImageGenerator = ref(false)
+const preferredLanguage = ref('english')
 
 //TODO: Move to constants
 const aiStoryPrompts = [
@@ -44,7 +48,7 @@ interface Message {
 }
 
 const userInput = ref<string>('')
-const messages = reactive<Message[]>([])
+const visibleMessages = reactive<Message[]>([])
 
 //TODO: Move to utils
 function scrollToBottom() {
@@ -59,20 +63,20 @@ function timeout(ms: number) {
 const frontIcon: Image = { path: fairytaleIcon, alt: 'Fairytale Image' }
 const backIcon: Image = { path: aiIcon, alt: 'Fairytale Image' }
 
-function getStoryAsText(chatStory: string[]) {
-  return chatStory.join(' ')
-}
+// function getStoryAsText(chatStory: string[]) {
+//   return chatStory.join(' ')
+// }
 
 async function explainGame() {
   await timeout(timeoutMessage)
-  addMessage(
+  await addMessage(
     'ai',
     `Let's create a story together. I'll begin with the first part`,
     frontIcon,
     backIcon
   )
   await timeout(timeoutMessage)
-  addMessage('ai', `Then you can carry it forward`, null, backIcon)
+  await addMessage('ai', `Then you can carry it forward`, null, backIcon)
 }
 function disableChatForm() {
   isEndStoryButtonEnabled.value = false
@@ -84,20 +88,42 @@ function enableChatForm() {
   isChatFormEnabled.value = true
 }
 
+async function translate(message: string, sourceLang: string, targetLang: string): string {
+  try {
+    const response = await fetch(
+      `${workerAiHost}/translate?source_lang=${sourceLang}&target_lang=${targetLang}&text=${message}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    const data = await response.json()
+    console.log(`Translated: ${data.translated_text}`)
+    return data.translated_text
+  } catch (error) {
+    console.error('Error:', error)
+    return `Error translating message: ${error}`
+  }
+}
+
 async function startStoryTelling() {
   //1. Greet the user
-  addMessage('ai', `Hi there!`, null, backIcon)
+  await addMessage('ai', `Hi there!`, null, backIcon)
 
   //2. Explain the game
   await explainGame()
 
   //3. Start the story and wait for user input
   const responseFirstPart = await getStoryPart()
-  const imagePromptText = useFullStoryForImageGenerator.value
-    ? getStoryAsText(chatStory)
-    : responseFirstPart
-  const img = await createImage(imagePromptText)
-  addMessage('ai', responseFirstPart, null, backIcon, img)
+  // const imagePromptText = useFullStoryForImageGenerator.value
+  //   ? getStoryAsText(chatStory)
+  //   : responseFirstPart
+  //const imagePromptText = responseFirstPart
+  const img = await createImage(responseFirstPart)
+  await addMessage('ai', responseFirstPart, null, backIcon, img)
   isChatSectionVisible.value = true
   isEndStoryButtonEnabled.value = true
 }
@@ -107,7 +133,6 @@ async function createImage(prompt: string): Promise<HTMLImageElement | null> {
   try {
     const response = await fetch(`${workerAiHost}/image?query=${prompt}`)
     const blob = await response.blob()
-    console.log(blob)
     const img = document.createElement('img')
     img.src = URL.createObjectURL(blob)
 
@@ -129,19 +154,31 @@ async function getStoryPart() {
   })
 
   const data = await response.json()
-  chatStory.push(data.response)
+  //chatStory.push(data.response)
   return data.response
 }
 
-function addMessage(
+async function addMessage(
   sender: 'user' | 'ai',
   content: string,
   iconFront?: Image | null,
   iconBack?: Image | null,
   image?: HTMLImageElement | null
 ) {
-  messages.push({ id: messages.length + 1, sender, content, iconFront, iconBack, image })
-  nextTick(() => {
+  if (sender === 'ai' && preferredLanguage.value !== 'english') {
+    content = await translate(content, 'english', preferredLanguage.value)
+  }
+
+  visibleMessages.push({
+    id: visibleMessages.length + 1,
+    sender,
+    content,
+    iconFront,
+    iconBack,
+    image
+  })
+
+  await nextTick(() => {
     scrollToBottom()
   })
 }
@@ -149,24 +186,29 @@ function addMessage(
 async function handleSubmit() {
   disableChatForm()
 
-  const prompt = userInput.value
+  let originalPrompt = userInput.value
+  let translatedPrompt = originalPrompt
   userInput.value = ''
 
-  chatStory.push(prompt)
-  let imagePromptText = useFullStoryForImageGenerator.value ? getStoryAsText(chatStory) : prompt
-  const imgUserInput = await createImage(imagePromptText)
-  addMessage('user', prompt, null, null, imgUserInput)
+  if (preferredLanguage.value !== 'english') {
+    translatedPrompt = await translate(originalPrompt, preferredLanguage.value, 'english')
+  }
+
+  //chatStory.push(prompt)
+  //let imagePromptText = useFullStoryForImageGenerator.value ? getStoryAsText(chatStory) : prompt
+  const imgUserInput = await createImage(translatedPrompt)
+  await addMessage('user', originalPrompt, null, null, imgUserInput)
 
   aiStoryPrompts.push({
     role: 'user',
-    content: `${prompt}. Continue with the next part`
+    content: `${translatedPrompt}. Continue with the next part.`
   })
   const responseFirstPart = await getStoryPart()
-  imagePromptText = useFullStoryForImageGenerator.value
-    ? getStoryAsText(chatStory)
-    : responseFirstPart
-  const img = await createImage(imagePromptText)
-  addMessage('ai', responseFirstPart, null, null, img)
+  // imagePromptText = useFullStoryForImageGenerator.value
+  //   ? getStoryAsText(chatStory)
+  //   : responseFirstPart
+  const img = await createImage(responseFirstPart)
+  await addMessage('ai', responseFirstPart, null, null, img)
 
   enableChatForm()
 }
@@ -175,30 +217,41 @@ async function endStory() {
   disableChatForm()
   isChatSectionVisible.value = false
 
-  // const prompt = messages[messages.length - 1].content // Last prompt
-  //const prompt = getStoryAsText(chatStory) // Full prompt
-
   aiStoryPrompts.push({
     role: 'user',
     content: `Create a happy short story final for this story`
   })
   const responseStoryEnding = await getStoryPart()
   const img = await createImage(responseStoryEnding)
-  addMessage('user', responseStoryEnding, null, null, img)
+  await addMessage('ai', responseStoryEnding, null, null, img)
 
   //TODO: Disable chat form and show create new history button
 }
 
-startStoryTelling()
+function setLanguage(language: string) {
+  preferredLanguage.value = language
+
+  startStoryTelling()
+}
 </script>
 
 <template>
   <main>
+    <section class="language-selection">
+      <div class="icon-container" @click="setLanguage('english')">
+        <img class="icon-language" :src="englishIcon" alt="English Language" />
+        <span>Hello!</span>
+      </div>
+      <div class="icon-container" @click="setLanguage('spanish')">
+        <img class="icon-language" :src="spanishIcon" alt="Spanish Language" />
+        <span>Hola!</span>
+      </div>
+    </section>
     <section class="chat">
       <div
         class="chat-bubble"
         :class="{ ai: message.sender === 'ai' }"
-        v-for="message in messages"
+        v-for="message in visibleMessages"
         :key="message.id"
       >
         <img
@@ -267,6 +320,28 @@ main {
   flex-direction: column;
   gap: 40px;
   margin: 20px;
+}
+
+.language-selection {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+.icon-language {
+  height: 50px;
+}
+
+.icon-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.5s ease-in-out;
+}
+
+.icon-container:hover {
+  transform: scale(1.2);
 }
 
 .chat-bubble {
