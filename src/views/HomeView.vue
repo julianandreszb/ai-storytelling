@@ -93,7 +93,7 @@ function enableChatForm() {
   isChatFormEnabled.value = true
 }
 
-async function translate(message: string, sourceLang: string, targetLang: string): string {
+async function translate(message: string, sourceLang: string, targetLang: string): Promise<string> {
   try {
     const response = await fetch(
       `${workerAiHost}/translate?source_lang=${sourceLang}&target_lang=${targetLang}&text=${message}`,
