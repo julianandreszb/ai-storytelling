@@ -275,7 +275,11 @@ function setLanguage(language: string) {
     </section>
     <section v-if="isChatSectionVisible" class="chat-entry">
       <form class="chat-input" @submit.prevent="handleSubmit">
-        <label for="message">Write the next story part:</label>
+        <label for="message">{{
+          preferredLanguage === 'english'
+            ? 'Write the next story part:'
+            : 'Escribe la siguiente parte de la historia'
+        }}</label>
         <textarea
           :disabled="!isChatFormEnabled"
           v-model="userInput"
@@ -284,7 +288,7 @@ function setLanguage(language: string) {
           rows="3"
         ></textarea>
         <button :disabled="!isChatFormEnabled || !userInput.length" class="btn" type="submit">
-          Send
+          {{ preferredLanguage === 'english' ? 'Send' : 'Enviar' }}
         </button>
         <button
           :disabled="!isChatFormEnabled || !isEndStoryButtonEnabled"
@@ -292,7 +296,7 @@ function setLanguage(language: string) {
           type="button"
           @click="endStory"
         >
-          End Story
+          {{ preferredLanguage === 'english' ? 'End Story' : 'Finalizar Historia' }}
         </button>
       </form>
     </section>
