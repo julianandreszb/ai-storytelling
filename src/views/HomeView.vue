@@ -11,9 +11,8 @@ const workerAiHost = import.meta.env.VITE_WORKER_AI_HOST
 const isChatSectionVisible = ref(false)
 const isChatFormEnabled = ref(true)
 const isEndStoryButtonEnabled = ref(false)
-// const chatStory: string[] = []
-// const useFullStoryForImageGenerator = ref(false)
 const preferredLanguage = ref('english')
+const isLanguageSectionVisible = ref(true)
 
 //TODO: Move to constants
 const aiStoryPrompts = [
@@ -60,24 +59,30 @@ function timeout(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-const frontIcon: Image = { path: fairytaleIcon, alt: 'Fairytale Image' }
-const backIcon: Image = { path: aiIcon, alt: 'Fairytale Image' }
+const frontIcon: Image = { path: fairytaleIcon, alt: 'Fairytale Icon' }
+const backIcon: Image = { path: aiIcon, alt: 'AI Icon' }
 
-// function getStoryAsText(chatStory: string[]) {
-//   return chatStory.join(' ')
-// }
+async function startIntro() {
+  await timeout(timeoutMessage)
+  await addMessage('ai', `Hi!`, null, backIcon)
 
-async function explainGame() {
   await timeout(timeoutMessage)
   await addMessage(
     'ai',
-    `Let's create a story together. I'll begin with the first part`,
+    `Let's create a story together. I'll begin with the first part.`,
     frontIcon,
     backIcon
   )
+
   await timeout(timeoutMessage)
-  await addMessage('ai', `Then you can carry it forward`, null, backIcon)
+  await addMessage(
+    'ai',
+    `Then you continue, and so on until the story is finished.`,
+    null,
+    backIcon
+  )
 }
+
 function disableChatForm() {
   isEndStoryButtonEnabled.value = false
   isChatFormEnabled.value = false
@@ -101,7 +106,6 @@ async function translate(message: string, sourceLang: string, targetLang: string
     )
 
     const data = await response.json()
-    console.log(`Translated: ${data.translated_text}`)
     return data.translated_text
   } catch (error) {
     console.error('Error:', error)
@@ -110,20 +114,12 @@ async function translate(message: string, sourceLang: string, targetLang: string
 }
 
 async function startStoryTelling() {
-  //1. Greet the user
-  await addMessage('ai', `Hi there!`, null, backIcon)
+  await startIntro()
 
-  //2. Explain the game
-  await explainGame()
-
-  //3. Start the story and wait for user input
   const responseFirstPart = await getStoryPart()
-  // const imagePromptText = useFullStoryForImageGenerator.value
-  //   ? getStoryAsText(chatStory)
-  //   : responseFirstPart
-  //const imagePromptText = responseFirstPart
   const img = await createImage(responseFirstPart)
   await addMessage('ai', responseFirstPart, null, backIcon, img)
+
   isChatSectionVisible.value = true
   isEndStoryButtonEnabled.value = true
 }
@@ -230,14 +226,14 @@ async function endStory() {
 
 function setLanguage(language: string) {
   preferredLanguage.value = language
-
+  isLanguageSectionVisible.value = false
   startStoryTelling()
 }
 </script>
 
 <template>
   <main>
-    <section class="language-selection">
+    <section v-if="isLanguageSectionVisible" class="language-selection">
       <div class="icon-container" @click="setLanguage('english')">
         <img class="icon-language" :src="englishIcon" alt="English Language" />
         <span>Hello!</span>
@@ -249,7 +245,7 @@ function setLanguage(language: string) {
     </section>
     <section class="chat">
       <div
-        class="chat-bubble"
+        class="chat-bubble gradient-box"
         :class="{ ai: message.sender === 'ai' }"
         v-for="message in visibleMessages"
         :key="message.id"
@@ -260,14 +256,14 @@ function setLanguage(language: string) {
           :src="message.image.src"
           :alt="message.image.alt"
         />
-        <div>
+        <div class="message-content">
           <img
             class="message-icon-pre"
             v-if="message.iconBack"
             :src="message.iconBack.path"
             :alt="message.iconBack.alt"
           />
-          {{ message.content }}
+          <p v-html="message.content"></p>
           <img
             class="message-icon"
             v-if="message.iconFront"
@@ -322,6 +318,12 @@ main {
   margin: 20px;
 }
 
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .language-selection {
   display: flex;
   justify-content: center;
@@ -344,20 +346,59 @@ main {
   transform: scale(1.2);
 }
 
+.gradient-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 600px;
+  margin: auto;
+  position: relative;
+  padding: 1rem;
+  box-sizing: border-box;
+
+  color: #fff;
+  background: #000;
+  background-clip: padding-box;
+  border: solid 5px transparent;
+  border-radius: 1em;
+
+  &:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    margin: -5px;
+    border-radius: inherit;
+    background: linear-gradient(to right, #549fff, orange);
+  }
+}
+
 .chat-bubble {
-  align-content: start;
+  /*align-content: start;
   align-items: center;
   animation: slideIn 0.5s ease forwards;
-  background-color: #007bff; /* Adjust colors as needed */
-  border-radius: 20px;
-  color: #fff;
+  !*background-color: #007bff;
+  border-radius: 20px;*!
+  !*color: #fff;*!
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
   margin-bottom: 20px;
-  padding: 10px 15px;
-  position: relative;
+  !*padding: 10px 15px;*!
+  !*position: relative;*!
   width: 600px;
+
+  position: relative;
+  padding: 30% 2em;
+  box-sizing: border-box;
+  color: #fff;
+  background: #000;
+  background-clip: padding-box; !* !importanté *!
+  border: solid 5px transparent; !* !importanté *!
+  border-radius: 1em;*/
 }
 
 .chat-bubble.ai {
@@ -381,6 +422,12 @@ main {
   height: auto;
   border-radius: 10px;
   margin: 10px 0;
+}
+
+.message-content {
+  display: flex;
+  gap: 10px;
+  width: 100%;
 }
 
 .chat-input {
