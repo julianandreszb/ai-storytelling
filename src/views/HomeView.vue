@@ -294,7 +294,7 @@ async function handleSubmit() {
   const img = await createImage(responseFirstPart)
   isLoadingStory.value = false
   await timeout(timeoutMessage)
-  await addMessage('ai', responseFirstPart, null, null, img)
+  await addMessage('ai', responseFirstPart, null, backIcon, img)
 
   enableChatForm()
 }
