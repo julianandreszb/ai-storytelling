@@ -12,6 +12,7 @@ const isChatFormEnabled = ref(true)
 const isEndStoryButtonEnabled = ref(false)
 const preferredLanguage = ref('english')
 const isLanguageSectionVisible = ref(true)
+const isStoryFinished = ref(false)
 
 const isLoadingStory = ref(false)
 const isGeneratingStoryPart = ref(false)
@@ -29,32 +30,16 @@ const storyTypes = [
   'Superhero',
   'Animal',
   'Ghost',
-  'Comedy',
-  'Drama',
   'Action and Adventure',
   'Magic and Supernatural',
-  'Horror',
-  'Romance'
+  'Horror'
 ]
 
 const randomIndex = Math.floor(Math.random() * storyTypes.length)
 const randomStoryType = storyTypes[randomIndex]
 
 //TODO: Move to constants
-const aiStoryPrompts = [
-  // {
-  //   role: 'system',
-  //   content: 'You are a story telling assistant'
-  // },
-  // {
-  //   role: 'user',
-  //   // content: `Create the first part about ${randomStoryType} and wait for my story contribution part, we will continue in this way until we complete the story, keep each story part concise and under 200 characters, do not include the prompt request text on the response, do not repeat the first part of the story on new requests. Start the story`
-  //
-  //   // content: `Create the first part of a random story about ${randomStoryType} and wait for my story contribution part, we will continue in this way until we complete the story, keep each story under 200 characters. Start the story`
-  //
-  //   content: `Create the first part about ${randomStoryType} and wait for my story contribution part and we will continue in this way until we complete the story and keep each story part concise and under 200 characters and do not include the request on the text response. Start the story`
-  // },
-  // @cf/meta/llama-2-7b-chat-fp16
+const defaultStoryPrompts = [
   {
     role: 'system',
     content: 'You are a story telling assistant'
@@ -69,17 +54,43 @@ const aiStoryPrompts = [
   },
   {
     role: 'user',
-    content: `Keep each story part concise and under 200 characters`
+    content: `Each story part MUST be less than 200 characters`
   },
   {
     role: 'user',
-    content: `Do not include the request on the text response`
+    content: `Do not include the user prompt on the text response`
   },
   {
     role: 'user',
     content: `Start the story`
   }
 ]
+
+let aiStoryPrompts: Prompt[] = [
+  // {
+  //   role: 'system',
+  //   content: 'You are a story telling assistant'
+  // },
+  // {
+  //   role: 'user',
+  //   // content: `Create the first part about ${randomStoryType} and wait for my story contribution part, we will continue in this way until we complete the story, keep each story part concise and under 200 characters, do not include the prompt request text on the response, do not repeat the first part of the story on new requests. Start the story`
+  //
+  //   // content: `Create the first part of a random story about ${randomStoryType} and wait for my story contribution part, we will continue in this way until we complete the story, keep each story under 200 characters. Start the story`
+  //
+  //   content: `Create the first part about ${randomStoryType} and wait for my story contribution part and we will continue in this way until we complete the story and keep each story part concise and under 200 characters and do not include the request on the text response. Start the story`
+  // },
+  // @cf/meta/llama-2-7b-chat-fp16
+]
+
+function resetVisibleMessages() {
+  visibleMessages = []
+}
+
+function resetAiStoryPrompts() {
+  aiStoryPrompts = [...defaultStoryPrompts]
+}
+
+resetAiStoryPrompts()
 
 //TODO: Move to constants
 const timeoutMessage = 2000
@@ -100,8 +111,13 @@ interface Message {
   image?: HTMLImageElement | null
 }
 
+interface Prompt {
+  role: string
+  content: string
+}
+
 const userInput = ref<string>('')
-const visibleMessages = reactive<Message[]>([])
+let visibleMessages = reactive<Message[]>([])
 
 //TODO: Move to utils
 function scrollToBottom() {
@@ -166,6 +182,7 @@ async function translate(message: string, sourceLang: string, targetLang: string
 }
 
 async function startStoryTelling() {
+  isStoryFinished.value = false
   await startIntro()
 
   await timeout(1000)
@@ -208,6 +225,11 @@ async function getStoryPart() {
   })
 
   const data = await response.json()
+
+  console.log('data.response.before', data.response)
+  data.response = data.response.replace(/\n/g, '')
+  console.log('data.response.before', data.response)
+
   return data.response
 }
 
@@ -244,27 +266,34 @@ async function handleSubmit() {
   userInput.value = ''
 
   isGeneratingStoryPart.value = true
+  isGeneratingImage.value = false
   isLoadingStory.value = true
 
   if (preferredLanguage.value !== 'english') {
     translatedPrompt = await translate(originalPrompt, preferredLanguage.value, 'english')
   }
-
   isGeneratingStoryPart.value = false
   isGeneratingImage.value = true
-
   const imgUserInput = await createImage(translatedPrompt)
-  await addMessage('user', originalPrompt, null, null, imgUserInput)
-
-  await timeout(timeoutMessage)
+  isGeneratingImage.value = false
   isLoadingStory.value = false
+  await timeout(timeoutMessage)
+  await addMessage('user', originalPrompt, null, null, imgUserInput)
 
   aiStoryPrompts.push({
     role: 'user',
     content: `${translatedPrompt}. Continue with the next part.`
   })
+
+  isGeneratingStoryPart.value = true
+  isGeneratingImage.value = false
+  isLoadingStory.value = true
   const responseFirstPart = await getStoryPart()
+  isGeneratingStoryPart.value = false
+  isGeneratingImage.value = true
   const img = await createImage(responseFirstPart)
+  isLoadingStory.value = false
+  await timeout(timeoutMessage)
   await addMessage('ai', responseFirstPart, null, null, img)
 
   enableChatForm()
@@ -276,23 +305,32 @@ async function endStory() {
 
   aiStoryPrompts.push({
     role: 'user',
-    content: `Create a happy short story final for this story`
+    content: `Create a short happy story ending with less than 700 characters.`
   })
   isGeneratingStoryPart.value = true
+  isGeneratingImage.value = false
   isLoadingStory.value = true
   const responseStoryEnding = await getStoryPart()
   isGeneratingStoryPart.value = false
   isGeneratingImage.value = true
   const img = await createImage(responseStoryEnding)
+  isGeneratingImage.value = false
   isLoadingStory.value = false
+  await timeout(timeoutMessage)
   await addMessage('ai', responseStoryEnding, null, null, img)
 
-  //TODO: Disable chat form and show create new history button
+  isStoryFinished.value = true
 }
 
 function setLanguage(language: string) {
   preferredLanguage.value = language
   isLanguageSectionVisible.value = false
+  startStoryTelling()
+}
+
+function createNewStory() {
+  resetVisibleMessages()
+  resetAiStoryPrompts()
   startStoryTelling()
 }
 </script>
@@ -329,7 +367,7 @@ function setLanguage(language: string) {
             :src="message.iconBack.path"
             :alt="message.iconBack.alt"
           />
-          <p v-html="message.content"></p>
+          <p>{{ message.content }}</p>
           <img
             class="message-icon"
             v-if="message.iconFront"
@@ -381,6 +419,13 @@ function setLanguage(language: string) {
           {{ preferredLanguage === 'english' ? 'END STORY' : 'FINALIZAR HISTORIA' }}
         </button>
       </form>
+    </section>
+    <section>
+      <div class="chat-input">
+        <button v-if="isStoryFinished" class="btn" type="button" @click="createNewStory">
+          {{ preferredLanguage === 'english' ? 'CREATE NEW STORY' : 'CREAR NUEVA HISTORIA' }}
+        </button>
+      </div>
     </section>
   </main>
 </template>
