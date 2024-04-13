@@ -2,7 +2,6 @@
 
 ## What I Built
 
-<!-- Tell us what your app does! -->
 
 I have developed a website that lets AI and the user **tell stories together**. The first story part is provided by the AI, then you can provide a new part and so on until the story is complete.
 
@@ -14,17 +13,14 @@ Additionally, the website also lets you **change the language you see it in**. R
 
 ## Demo
 [Demo Here!](https://ai-storytelling.pages.dev/)
-<!-- Share a link to your deployed solution on Workers or Pages, and add a screenshot or video embed of your app here. -->
 
-{% embed https://youtu.be/jiLvIYLGpEw?si=hnC-OWQMRKyycIiU %}
+https://youtu.be/jiLvIYLGpEw?si=hnC-OWQMRKyycIiU
 
 ## My Code
 https://github.com/julianandreszb/ai-storytelling
 
 
 ## Journey
-
-<!-- Tell us about your process, the task types and models you used, what you learned, anything you are particularly proud of, what you hope to do next, etc. -->
 
 This challenge was a perfect way to explore, learn, and integrate Cloudflare Pages and AI Workers and make them work together. 
 
@@ -56,13 +52,3 @@ All the documentation was easy to follow and implement. Also, it helped me a lot
 | Generate story parts| Text Generation    | [llama-2-7b-chat-int8](https://developers.cloudflare.com/workers-ai/models/llama-2-7b-chat-int8/)
 | Summarize prompts for image generation| Summarization | [bart-large-cnn](https://developers.cloudflare.com/workers-ai/models/bart-large-cnn/)|
 | Generate Images | Text-to-Image | [stable-diffusion-xl-lightning](https://developers.cloudflare.com/workers-ai/models/stable-diffusion-xl-lightning/)|
-
-
-
-<!-- Let us know if your project utilized multiple models per task and/or if your project used three or more task types. If so, you may qualify for our additional prize categories! If not, please remove this section. -->
-
-<!-- Team Submissions: Please pick one member to publish the submission and credit teammates by listing their DEV usernames directly in the body of the post. -->
-
-<!-- Don't forget to add a cover image or an additional tag to this post (if you want). -->
-
-<!-- Thanks for participating! -->
