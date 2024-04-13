@@ -2,7 +2,6 @@
 import { nextTick, reactive, ref } from 'vue'
 
 //TODO: Resize-optimize images
-import fairytaleIcon from '@/assets/images/fairytale.png'
 import aiIcon from '@/assets/images/ai-2.png'
 import spanishIcon from '@/assets/images/es.png'
 import englishIcon from '@/assets/images/en.png'
@@ -14,16 +13,71 @@ const isEndStoryButtonEnabled = ref(false)
 const preferredLanguage = ref('english')
 const isLanguageSectionVisible = ref(true)
 
+const isLoadingStory = ref(false)
+const isGeneratingStoryPart = ref(false)
+const isGeneratingImage = ref(false)
+
+//TODO: Move to constants
+const storyTypes = [
+  'Fairy Tales',
+  'Fables',
+  'Adventure',
+  'Science Fiction',
+  'Mystery',
+  'Fantasy',
+  'Mythology',
+  'Superhero',
+  'Animal',
+  'Ghost',
+  'Comedy',
+  'Drama',
+  'Action and Adventure',
+  'Magic and Supernatural',
+  'Horror',
+  'Romance'
+]
+
+const randomIndex = Math.floor(Math.random() * storyTypes.length)
+const randomStoryType = storyTypes[randomIndex]
+
 //TODO: Move to constants
 const aiStoryPrompts = [
+  // {
+  //   role: 'system',
+  //   content: 'You are a story telling assistant'
+  // },
+  // {
+  //   role: 'user',
+  //   // content: `Create the first part about ${randomStoryType} and wait for my story contribution part, we will continue in this way until we complete the story, keep each story part concise and under 200 characters, do not include the prompt request text on the response, do not repeat the first part of the story on new requests. Start the story`
+  //
+  //   // content: `Create the first part of a random story about ${randomStoryType} and wait for my story contribution part, we will continue in this way until we complete the story, keep each story under 200 characters. Start the story`
+  //
+  //   content: `Create the first part about ${randomStoryType} and wait for my story contribution part and we will continue in this way until we complete the story and keep each story part concise and under 200 characters and do not include the request on the text response. Start the story`
+  // },
+  // @cf/meta/llama-2-7b-chat-fp16
   {
     role: 'system',
     content: 'You are a story telling assistant'
   },
   {
     role: 'user',
-    content:
-      'Create the first part of a tale and wait for my story contribution part, we will continue in this way until we complete the story, keep each story part concise and under 200 characters, do not include the prompt text on the response, do not repeat the first part of the story on new requests. Start the story'
+    content: `Create the first part of a story about ${randomStoryType}`
+  },
+  {
+    role: 'user',
+    content: `Wait for my story contribution part and we will continue in this way until we complete the story`
+  },
+  {
+    role: 'user',
+    content: `Keep each story part concise and under 200 characters`
+  },
+  {
+    role: 'user',
+    content: `Do not include the request on the text response`
+  },
+  {
+    role: 'user',
+    content: `Start the story`
   }
 ]
 
@@ -59,18 +113,16 @@ function timeout(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-const frontIcon: Image = { path: fairytaleIcon, alt: 'Fairytale Icon' }
 const backIcon: Image = { path: aiIcon, alt: 'AI Icon' }
 
 async function startIntro() {
-  await timeout(timeoutMessage)
-  await addMessage('ai', `Hi!`, null, backIcon)
+  // await addMessage('ai', `Hi!`, null, backIcon)
 
-  await timeout(timeoutMessage)
+  // await timeout(timeoutMessage)
   await addMessage(
     'ai',
-    `Let's create a story together. I'll begin with the first part.`,
-    frontIcon,
+    `Hi! Let's create a story together. I'll begin with the first part.`,
+    null,
     backIcon
   )
 
@@ -116,8 +168,14 @@ async function translate(message: string, sourceLang: string, targetLang: string
 async function startStoryTelling() {
   await startIntro()
 
+  await timeout(1000)
+  isGeneratingStoryPart.value = true
+  isLoadingStory.value = true
   const responseFirstPart = await getStoryPart()
+  isGeneratingStoryPart.value = false
+  isGeneratingImage.value = true
   const img = await createImage(responseFirstPart)
+  isLoadingStory.value = false
   await addMessage('ai', responseFirstPart, null, backIcon, img)
 
   isChatSectionVisible.value = true
@@ -150,7 +208,6 @@ async function getStoryPart() {
   })
 
   const data = await response.json()
-  //chatStory.push(data.response)
   return data.response
 }
 
@@ -186,23 +243,27 @@ async function handleSubmit() {
   let translatedPrompt = originalPrompt
   userInput.value = ''
 
+  isGeneratingStoryPart.value = true
+  isLoadingStory.value = true
+
   if (preferredLanguage.value !== 'english') {
     translatedPrompt = await translate(originalPrompt, preferredLanguage.value, 'english')
   }
 
-  //chatStory.push(prompt)
-  //let imagePromptText = useFullStoryForImageGenerator.value ? getStoryAsText(chatStory) : prompt
+  isGeneratingStoryPart.value = false
+  isGeneratingImage.value = true
+
   const imgUserInput = await createImage(translatedPrompt)
   await addMessage('user', originalPrompt, null, null, imgUserInput)
+
+  await timeout(timeoutMessage)
+  isLoadingStory.value = false
 
   aiStoryPrompts.push({
     role: 'user',
     content: `${translatedPrompt}. Continue with the next part.`
   })
   const responseFirstPart = await getStoryPart()
-  // imagePromptText = useFullStoryForImageGenerator.value
-  //   ? getStoryAsText(chatStory)
-  //   : responseFirstPart
   const img = await createImage(responseFirstPart)
   await addMessage('ai', responseFirstPart, null, null, img)
 
@@ -217,8 +278,13 @@ async function endStory() {
     role: 'user',
     content: `Create a happy short story final for this story`
   })
+  isGeneratingStoryPart.value = true
+  isLoadingStory.value = true
   const responseStoryEnding = await getStoryPart()
+  isGeneratingStoryPart.value = false
+  isGeneratingImage.value = true
   const img = await createImage(responseStoryEnding)
+  isLoadingStory.value = false
   await addMessage('ai', responseStoryEnding, null, null, img)
 
   //TODO: Disable chat form and show create new history button
@@ -245,7 +311,7 @@ function setLanguage(language: string) {
     </section>
     <section class="chat">
       <div
-        class="chat-bubble gradient-box"
+        class="chat-bubble"
         :class="{ ai: message.sender === 'ai' }"
         v-for="message in visibleMessages"
         :key="message.id"
@@ -272,13 +338,29 @@ function setLanguage(language: string) {
           />
         </div>
       </div>
+      <div v-if="isLoadingStory" class="chat-bubble chat-bubble-loading">
+        <div class="message-content message-content-loading">
+          <p v-if="isGeneratingStoryPart">
+            ✨ {{ preferredLanguage === 'english' ? 'Generating Story' : 'Generando Historia'
+            }}<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+          </p>
+          <p v-if="!isGeneratingStoryPart">
+            ✨
+            {{ preferredLanguage === 'english' ? 'Generating Story' : 'Generando Historia' }}: 👍
+          </p>
+          <p v-if="isGeneratingImage">
+            ✨ {{ preferredLanguage === 'english' ? 'Generating Image' : 'Generando Imagen'
+            }}<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+          </p>
+        </div>
+      </div>
     </section>
     <section v-if="isChatSectionVisible" class="chat-entry">
       <form class="chat-input" @submit.prevent="handleSubmit">
         <label for="message">{{
           preferredLanguage === 'english'
-            ? 'Write the next story part:'
-            : 'Escribe la siguiente parte de la historia'
+            ? 'WRITE THE NEXT STORY PART:'
+            : 'ESCRIBE LA SIGUIENTE PARTE DE LA HISTORIA'
         }}</label>
         <textarea
           :disabled="!isChatFormEnabled"
@@ -288,7 +370,7 @@ function setLanguage(language: string) {
           rows="3"
         ></textarea>
         <button :disabled="!isChatFormEnabled || !userInput.length" class="btn" type="submit">
-          {{ preferredLanguage === 'english' ? 'Send' : 'Enviar' }}
+          {{ preferredLanguage === 'english' ? 'SEND' : 'ENVIAR' }}
         </button>
         <button
           :disabled="!isChatFormEnabled || !isEndStoryButtonEnabled"
@@ -296,7 +378,7 @@ function setLanguage(language: string) {
           type="button"
           @click="endStory"
         >
-          {{ preferredLanguage === 'english' ? 'End Story' : 'Finalizar Historia' }}
+          {{ preferredLanguage === 'english' ? 'END STORY' : 'FINALIZAR HISTORIA' }}
         </button>
       </form>
     </section>
@@ -313,6 +395,10 @@ function setLanguage(language: string) {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+p {
+  font-weight: bold;
 }
 
 main {
@@ -350,65 +436,40 @@ main {
   transform: scale(1.2);
 }
 
-.gradient-box {
+.chat-bubble {
+  animation: slideIn 0.5s ease forwards;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 600px;
-  margin: auto;
+  /*margin: auto;*/
   position: relative;
   padding: 1rem;
   box-sizing: border-box;
 
-  color: #fff;
-  background: #000;
+  color: #000;
   background-clip: padding-box;
   border: solid 5px transparent;
   border-radius: 1em;
-
-  &:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: -1;
-    margin: -5px;
-    border-radius: inherit;
-    background: linear-gradient(to right, #549fff, orange);
-  }
 }
 
-.chat-bubble {
-  /*align-content: start;
-  align-items: center;
+.chat-bubble::before {
   animation: slideIn 0.5s ease forwards;
-  !*background-color: #007bff;
-  border-radius: 20px;*!
-  !*color: #fff;*!
-  display: flex;
-  flex-direction: column;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-  !*padding: 10px 15px;*!
-  !*position: relative;*!
-  width: 600px;
-
-  position: relative;
-  padding: 30% 2em;
-  box-sizing: border-box;
-  color: #fff;
-  background: #000;
-  background-clip: padding-box; !* !importanté *!
-  border: solid 5px transparent; !* !importanté *!
-  border-radius: 1em;*/
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  margin: -5px;
+  border-radius: inherit;
+  background: linear-gradient(to right, #ddedff, orange);
 }
 
-.chat-bubble.ai {
-  align-self: flex-start;
-  background-color: #f0f0f0;
-  color: #000;
+.chat-bubble.chat-bubble-loading::before {
+  background: #fff;
 }
 
 .message-icon {
@@ -432,6 +493,10 @@ main {
   display: flex;
   gap: 10px;
   width: 100%;
+}
+
+.message-content-loading {
+  flex-direction: column;
 }
 
 .chat-input {
@@ -465,5 +530,36 @@ main {
   background-color: #cccccc;
   color: #666666;
   cursor: not-allowed;
+}
+
+.dot {
+  animation-name: dot;
+  animation-duration: 1.3s;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  font-weight: 900;
+}
+
+.dot:nth-child(1) {
+  animation-delay: 0.5s;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.7s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.9s;
+}
+
+@keyframes dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
 }
 </style>
